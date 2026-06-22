@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\KelasController;
 use App\Http\Controllers\Api\MapelController;
+use App\Http\Controllers\Api\MateriController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,21 +30,30 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Sprint 3: Kelas & Mata Pelajaran — admin dan guru
     Route::middleware('role:admin,guru')->group(function () {
+        Route::get('kelas',                           [KelasController::class, 'index']);
+        Route::post('kelas',                          [KelasController::class, 'store']);
+        Route::put('kelas/{id}',                      [KelasController::class, 'update']);
+        Route::delete('kelas/{id}',                   [KelasController::class, 'destroy']);
+        Route::post('kelas/{id}/siswa',               [KelasController::class, 'tambahSiswa']);
+        Route::delete('kelas/{id}/siswa/{id_siswa}',  [KelasController::class, 'hapusSiswa']);
 
-        // Kelas
-        Route::get('kelas',                              [KelasController::class, 'index']);
-        Route::post('kelas',                             [KelasController::class, 'store']);
-        Route::put('kelas/{id}',                         [KelasController::class, 'update']);
-        Route::delete('kelas/{id}',                      [KelasController::class, 'destroy']);
+        Route::get('mapel',       [MapelController::class, 'index']);
+        Route::post('mapel',      [MapelController::class, 'store']);
+        Route::put('mapel/{id}',  [MapelController::class, 'update']);
+        Route::delete('mapel/{id}', [MapelController::class, 'destroy']);
+    });
 
-        // Siswa Kelas
-        Route::post('kelas/{id}/siswa',                  [KelasController::class, 'tambahSiswa']);
-        Route::delete('kelas/{id}/siswa/{id_siswa}',     [KelasController::class, 'hapusSiswa']);
+    // Sprint 4: Materi Pembelajaran
+    // GET (index & show) → guru dan siswa
+    Route::middleware('role:admin,guru,siswa')->group(function () {
+        Route::get('materi',       [MateriController::class, 'index']);
+        Route::get('materi/{id}',  [MateriController::class, 'show']);
+    });
 
-        // Mata Pelajaran
-        Route::get('mapel',                              [MapelController::class, 'index']);
-        Route::post('mapel',                             [MapelController::class, 'store']);
-        Route::put('mapel/{id}',                         [MapelController::class, 'update']);
-        Route::delete('mapel/{id}',                      [MapelController::class, 'destroy']);
+    // POST, PUT, DELETE → hanya guru (dan admin)
+    Route::middleware('role:admin,guru')->group(function () {
+        Route::post('materi',          [MateriController::class, 'store']);
+        Route::put('materi/{id}',      [MateriController::class, 'update']);
+        Route::delete('materi/{id}',   [MateriController::class, 'destroy']);
     });
 });
