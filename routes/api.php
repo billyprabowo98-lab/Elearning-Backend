@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\KelasController;
 use App\Http\Controllers\Api\MapelController;
 use App\Http\Controllers\Api\MateriController;
 use App\Http\Controllers\Api\NotifikasiController;
+use App\Http\Controllers\Api\PengumumanController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,10 +40,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('kelas/{id}/siswa',              [KelasController::class, 'tambahSiswa']);
         Route::delete('kelas/{id}/siswa/{id_siswa}', [KelasController::class, 'hapusSiswa']);
 
-        Route::get('mapel',          [MapelController::class, 'index']);
-        Route::post('mapel',         [MapelController::class, 'store']);
-        Route::put('mapel/{id}',     [MapelController::class, 'update']);
-        Route::delete('mapel/{id}',  [MapelController::class, 'destroy']);
+        Route::get('mapel',         [MapelController::class, 'index']);
+        Route::post('mapel',        [MapelController::class, 'store']);
+        Route::put('mapel/{id}',    [MapelController::class, 'update']);
+        Route::delete('mapel/{id}', [MapelController::class, 'destroy']);
     });
 
     // Sprint 4: Materi — GET untuk semua, CUD untuk guru/admin
@@ -51,29 +52,37 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('materi/{id}', [MateriController::class, 'show']);
     });
     Route::middleware('role:admin,guru')->group(function () {
-        Route::post('materi',         [MateriController::class, 'store']);
-        Route::put('materi/{id}',     [MateriController::class, 'update']);
-        Route::delete('materi/{id}',  [MateriController::class, 'destroy']);
+        Route::post('materi',        [MateriController::class, 'store']);
+        Route::put('materi/{id}',    [MateriController::class, 'update']);
+        Route::delete('materi/{id}', [MateriController::class, 'destroy']);
     });
 
-    // Sprint 5: Forum Diskusi — guru dan siswa
+    // Sprint 5: Forum Diskusi — semua role
     Route::middleware('role:admin,guru,siswa')->group(function () {
-        // Topik
-        Route::get('forum',          [ForumController::class, 'index']);
-        Route::post('forum',         [ForumController::class, 'store']);
-        Route::get('forum/{id}',     [ForumController::class, 'show']);
-        Route::put('forum/{id}',     [ForumController::class, 'update']);
-        Route::delete('forum/{id}',  [ForumController::class, 'destroy']);
+        Route::get('forum',                   [ForumController::class, 'index']);
+        Route::post('forum',                  [ForumController::class, 'store']);
+        Route::get('forum/{id}',              [ForumController::class, 'show']);
+        Route::put('forum/{id}',              [ForumController::class, 'update']);
+        Route::delete('forum/{id}',           [ForumController::class, 'destroy']);
+        Route::post('forum/{id}/komentar',    [ForumController::class, 'simpanKomentar']);
+        Route::put('komentar/{id}',           [ForumController::class, 'updateKomentar']);
+        Route::delete('komentar/{id}',        [ForumController::class, 'hapusKomentar']);
 
-        // Komentar
-        Route::post('forum/{id}/komentar',  [ForumController::class, 'simpanKomentar']);
-        Route::put('komentar/{id}',         [ForumController::class, 'updateKomentar']);
-        Route::delete('komentar/{id}',      [ForumController::class, 'hapusKomentar']);
+        Route::get('notifikasi',              [NotifikasiController::class, 'index']);
+        Route::put('notifikasi/baca-semua',   [NotifikasiController::class, 'bacaSemua']);
+        Route::put('notifikasi/{id}/baca',    [NotifikasiController::class, 'tandaiBaca']);
+        Route::delete('notifikasi/{id}',      [NotifikasiController::class, 'destroy']);
+    });
 
-        // Notifikasi
-        Route::get('notifikasi',                   [NotifikasiController::class, 'index']);
-        Route::put('notifikasi/baca-semua',        [NotifikasiController::class, 'bacaSemua']);
-        Route::put('notifikasi/{id}/baca',         [NotifikasiController::class, 'tandaiBaca']);
-        Route::delete('notifikasi/{id}',           [NotifikasiController::class, 'destroy']);
+    // Sprint 6: Pengumuman
+    // GET → semua role (siswa difilter otomatis sesuai kelas)
+    // POST, PUT, DELETE → admin dan guru
+    Route::middleware('role:admin,guru,siswa')->group(function () {
+        Route::get('pengumuman', [PengumumanController::class, 'index']);
+    });
+    Route::middleware('role:admin,guru')->group(function () {
+        Route::post('pengumuman',        [PengumumanController::class, 'store']);
+        Route::put('pengumuman/{id}',    [PengumumanController::class, 'update']);
+        Route::delete('pengumuman/{id}', [PengumumanController::class, 'destroy']);
     });
 });
