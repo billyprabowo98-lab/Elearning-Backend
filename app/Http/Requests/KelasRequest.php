@@ -25,7 +25,7 @@ class KelasRequest extends FormRequest
             'tingkat'      => [
                 $isUpdate ? 'sometimes' : 'required',
                 'string',
-                'in:X,XI,XII',
+                'max:50',
             ],
             'jurusan'      => ['nullable', 'string', 'max:100'],
             'guru_id'      => ['nullable', 'exists:users,id'],
@@ -44,7 +44,6 @@ class KelasRequest extends FormRequest
         return [
             'nama_kelas.required'   => 'Nama kelas wajib diisi.',
             'tingkat.required'      => 'Tingkat wajib diisi.',
-            'tingkat.in'            => 'Tingkat tidak valid. Pilih: X, XI, atau XII.',
             'guru_id.exists'        => 'Guru yang dipilih tidak ditemukan.',
             'tahun_ajaran.required' => 'Tahun ajaran wajib diisi.',
             'tahun_ajaran.digits'   => 'Tahun ajaran harus 4 digit.',
