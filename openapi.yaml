@@ -1,0 +1,2772 @@
+openapi: 3.0.0
+info:
+  title: E-Learning API Documentation
+  description: |
+    Dokumentasi RESTful API untuk Sistem E-Learning berbasis Laravel 12.
+    
+    ### Fitur Utama:
+    * **Autentikasi:** Laravel Sanctum (Token-Based).
+    * **RBAC (Role-Based Access Control):** admin, guru, siswa.
+    * **Manajemen Akademik:** Kelas & Mata Pelajaran.
+    * **Materi Pembelajaran:** Upload berkas (PDF/Gambar) dan Tautan Video.
+    * **Forum Diskusi:** Pembuatan topik, komentar, dan balasan komentar bertingkat.
+    * **Pengumuman:** Pengumuman sekolah & pengumuman spesifik per kelas.
+    * **Notifikasi:** Notifikasi real-time untuk topik baru, komentar baru, dan balasan komentar.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api
+    description: Development Server Lokal
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Cek Status API
+      description: Memeriksa apakah API backend E-Learning berjalan dengan baik.
+      security: []
+      responses:
+        '200':
+          description: API berjalan normal.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: E-Learning Backend API is running successfully
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2026-06-24T19:04:21+07:00"
+
+  /register:
+    post:
+      summary: Registrasi Siswa Baru
+      description: Mendaftarkan akun siswa baru ke dalam sistem. Username akan di-generate otomatis dari email.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+                - password_confirmation
+              properties:
+                name:
+                  type: string
+                  description: Nama lengkap siswa.
+                  example: Muhammad Ahlul
+                email:
+                  type: string
+                  format: email
+                  description: Alamat email unik siswa.
+                  example: ahlul@sekolah.sch.id
+                password:
+                  type: string
+                  format: password
+                  description: Password minimal 6 karakter.
+                  example: ahlul123
+                password_confirmation:
+                  type: string
+                  format: password
+                  description: Konfirmasi password harus cocok dengan password.
+                  example: ahlul123
+      responses:
+        '201':
+          description: Registrasi berhasil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Registrasi berhasil.
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: 1|laravel_sanctum_token_string...
+                      token_type:
+                        type: string
+                        example: Bearer
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 10
+                          nama:
+                            type: string
+                            example: Muhammad Ahlul
+                          username:
+                            type: string
+                            example: m_ahlul
+                          email:
+                            type: string
+                            format: email
+                            example: ahlul@sekolah.sch.id
+                          role:
+                            type: string
+                            example: siswa
+        '422':
+          description: Validasi gagal (email sudah terdaftar, password kurang dari 6 karakter, atau konfirmasi password tidak cocok).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /login:
+    post:
+      summary: Login Pengguna
+      description: Masuk menggunakan username atau email dan password untuk mendapatkan token autentikasi.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+              properties:
+                login:
+                  type: string
+                  description: Username atau alamat email pengguna.
+                  example: admin@sekolah.sch.id
+                password:
+                  type: string
+                  format: password
+                  description: Password minimal 6 karakter.
+                  example: admin123
+      responses:
+        '200':
+          description: Login berhasil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Login berhasil.
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: 1|laravel_sanctum_token_string...
+                      token_type:
+                        type: string
+                        example: Bearer
+                      user:
+                        $ref: '#/components/schemas/User'
+        '422':
+          description: Validasi gagal (kredensial salah atau parameter kurang).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /logout:
+    post:
+      summary: Logout Pengguna
+      description: Menghapus token autentikasi yang sedang digunakan saat ini.
+      responses:
+        '200':
+          description: Logout berhasil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Logout berhasil.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+  /profile:
+    get:
+      summary: Detail Profil Pengguna
+      description: Mendapatkan data profil lengkap dari pengguna yang sedang login.
+      responses:
+        '200':
+          description: Profil berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+    put:
+      summary: Update Profil Pengguna
+      description: Memperbarui data profil pengguna yang sedang login (Nama, Username, Email, dan Password).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nama
+                - username
+                - email
+              properties:
+                nama:
+                  type: string
+                  example: Siti Rahayu
+                username:
+                  type: string
+                  example: siti_r
+                email:
+                  type: string
+                  format: email
+                  example: siti@sekolah.sch.id
+                password:
+                  type: string
+                  format: password
+                  description: Opsional, diisi jika ingin mengganti kata sandi. Minimal 6 karakter.
+                  example: newpassword123
+      responses:
+        '200':
+          description: Profil berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Profil berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '422':
+          description: Validasi gagal (misal email/username sudah digunakan).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /admin:
+    get:
+      summary: List Pengguna (Admin Only)
+      description: Menampilkan daftar semua pengguna dengan filter, search, dan pagination.
+      parameters:
+        - name: search
+          in: query
+          description: Mencari berdasarkan nama pengguna (LIKE)
+          required: false
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Memfilter pengguna berdasarkan role
+          required: false
+          schema:
+            type: string
+            enum: [admin, guru, siswa]
+        - name: per_page
+          in: query
+          description: Jumlah item per halaman (default 10, max 100)
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: page
+          in: query
+          description: Nomor halaman pagination
+          required: false
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Berhasil mengambil data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  links:
+                    $ref: '#/components/schemas/PaginationLinks'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+
+    post:
+      summary: Tambah Pengguna Baru (Admin Only)
+      description: Membuat akun baru (admin, guru, atau siswa).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nama
+                - username
+                - email
+                - password
+                - role
+              properties:
+                nama:
+                  type: string
+                  example: Ahmad Fauzi
+                username:
+                  type: string
+                  description: Hanya boleh berisi huruf, angka, strip, dan underscore.
+                  example: ahmad_f
+                email:
+                  type: string
+                  format: email
+                  example: ahmad.fauzi@sekolah.sch.id
+                password:
+                  type: string
+                  format: password
+                  description: Minimal 6 karakter, wajib mengandung kombinasi huruf dan angka.
+                  example: ahmad123
+                role:
+                  type: string
+                  enum: [admin, guru, siswa]
+                  example: siswa
+      responses:
+        '201':
+          description: Pengguna berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pengguna berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '422':
+          description: Validasi gagal (misal email/username duplikat).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /admin/{id}:
+    get:
+      summary: Detail Pengguna (Admin Only)
+      description: Mengambil data detail satu pengguna berdasarkan ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Pengguna
+      responses:
+        '200':
+          description: Detail user berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+    put:
+      summary: Update Data Pengguna (Admin Only)
+      description: Memperbarui data pengguna secara parsial (field yang kosong tidak akan dirubah).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Pengguna
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama:
+                  type: string
+                  example: Ahmad Fauzi S.Pd.
+                username:
+                  type: string
+                  example: ahmad_f
+                email:
+                  type: string
+                  format: email
+                  example: ahmad.fauzi@sekolah.sch.id
+                password:
+                  type: string
+                  format: password
+                  description: Opsional, diisi jika ingin mengganti password.
+                  example: ahmadNew123
+                role:
+                  type: string
+                  enum: [admin, guru, siswa]
+                  example: guru
+      responses:
+        '200':
+          description: Pengguna berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pengguna berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+    delete:
+      summary: Hapus Pengguna (Admin Only)
+      description: Menghapus pengguna dari sistem. Admin tidak dapat menghapus akunnya sendiri.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Pengguna yang ingin dihapus
+      responses:
+        '200':
+          description: Pengguna berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pengguna berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          description: Gagal menghapus karena menghapus akun sendiri.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Tidak dapat menghapus akun sendiri.
+
+  /kelas:
+    get:
+      summary: List Kelas (Semua Role)
+      description: Menampilkan daftar kelas dengan pagination, pencarian nama, filter tahun ajaran, dan tingkat kelas. Siswa hanya melihat kelas yang diikutinya, Guru hanya melihat kelas yang diajarnya, Admin melihat semua kelas.
+      parameters:
+        - name: search
+          in: query
+          description: Cari berdasarkan nama_kelas
+          required: false
+          schema:
+            type: string
+        - name: tahun_ajaran
+          in: query
+          description: Filter berdasarkan tahun ajaran (format YYYY)
+          required: false
+          schema:
+            type: integer
+        - name: tingkat
+          in: query
+          description: Filter tingkat kelas
+          required: false
+          schema:
+            type: string
+        - name: per_page
+          in: query
+          description: Jumlah item per halaman (default 10)
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List kelas berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Kelas'
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer, example: 1 }
+                      per_page: { type: integer, example: 10 }
+                      total: { type: integer, example: 5 }
+                      last_page: { type: integer, example: 1 }
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+
+    post:
+      summary: Buat Kelas Baru (Admin, Guru Only)
+      description: Menambahkan kelas baru. Wali kelas harus berupa user dengan role 'guru'.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nama_kelas
+                - tingkat
+                - tahun_ajaran
+              properties:
+                nama_kelas:
+                  type: string
+                  example: X MIPA 1
+                tingkat:
+                  type: string
+                  example: X
+                jurusan:
+                  type: string
+                  example: MIPA
+                guru_id:
+                  type: integer
+                  description: ID guru wali kelas (role harus 'guru').
+                  example: 2
+                tahun_ajaran:
+                  type: integer
+                  description: Tahun ajaran 4 digit.
+                  example: 2024
+      responses:
+        '201':
+          description: Kelas berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Kelas berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/Kelas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '422':
+          description: Validasi gagal (misalnya wali kelas bukan guru).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /kelas/{id}:
+    put:
+      summary: Update Kelas (Admin, Guru Only)
+      description: Memperbarui informasi data kelas.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Kelas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_kelas:
+                  type: string
+                  example: X MIPA 1 (Unggulan)
+                tingkat:
+                  type: string
+                  example: X
+                jurusan:
+                  type: string
+                  example: MIPA
+                guru_id:
+                  type: integer
+                  example: 2
+                tahun_ajaran:
+                  type: integer
+                  example: 2024
+      responses:
+        '200':
+          description: Kelas berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Kelas berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/Kelas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+    delete:
+      summary: Hapus Kelas (Admin, Guru Only)
+      description: Menghapus kelas secara permanen beserta data relasi siswanya.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Kelas
+      responses:
+        '200':
+          description: Kelas berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Kelas berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /kelas/{id}/siswa:
+    post:
+      summary: Tambah Siswa ke Kelas (Admin, Guru Only)
+      description: Memasukkan satu atau beberapa siswa sekaligus ke kelas pada tahun ajaran yang ditentukan.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Kelas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - siswa_ids
+                - tahun_ajaran
+              properties:
+                siswa_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: Array ID User yang bertipe siswa.
+                  example: [3, 4]
+                tahun_ajaran:
+                  type: integer
+                  example: 2024
+      responses:
+        '201':
+          description: Siswa berhasil ditambahkan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 2 siswa berhasil ditambahkan ke kelas.
+                  data:
+                    $ref: '#/components/schemas/Kelas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          description: Gagal karena ada ID bukan siswa atau siswa telah terdaftar di kelas lain pada tahun ajaran tersebut.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /kelas/{id}/siswa/{id_siswa}:
+    delete:
+      summary: Hapus Siswa dari Kelas (Admin, Guru Only)
+      description: Mengeluarkan satu siswa dari daftar siswa kelas.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Kelas
+        - name: id_siswa
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Siswa (User ID)
+      responses:
+        '200':
+          description: Siswa berhasil dikeluarkan dari kelas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Siswa berhasil dikeluarkan dari kelas.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          description: Kelas tidak ditemukan atau siswa tidak terdaftar di kelas ini.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Siswa tidak terdaftar di kelas ini.
+
+  /kelas/join:
+    post:
+      summary: Gabung Kelas (Siswa Only)
+      description: Siswa bergabung ke kelas menggunakan kode kelas (kelas_id).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - kelas_id
+              properties:
+                kelas_id:
+                  type: integer
+                  description: ID kelas yang ingin diikuti.
+                  example: 1
+      responses:
+        '200':
+          description: Berhasil bergabung ke kelas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Berhasil bergabung ke kelas.
+                  data:
+                    $ref: '#/components/schemas/Kelas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          description: Kelas tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Kelas tidak ditemukan. Periksa kembali kode kelas.
+        '422':
+          description: Sudah terdaftar di kelas ini.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Anda sudah terdaftar di kelas ini.
+
+  /mapel:
+    get:
+      summary: List Mata Pelajaran (Semua Role)
+      description: Mengambil daftar mata pelajaran dengan pagination dan pencarian nama/kode. Dapat diakses oleh Admin, Guru, dan Siswa.
+      parameters:
+        - name: search
+          in: query
+          description: Cari berdasarkan nama_mapel atau kode_mapel
+          required: false
+          schema:
+            type: string
+        - name: per_page
+          in: query
+          description: Jumlah item per halaman
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Berhasil mengambil data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Mapel'
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      last_page: { type: integer }
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+
+    post:
+      summary: Buat Mata Pelajaran (Admin, Guru Only)
+      description: Menambahkan data mata pelajaran baru.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nama_mapel
+                - kode_mapel
+              properties:
+                nama_mapel:
+                  type: string
+                  example: Matematika Wajib
+                kode_mapel:
+                  type: string
+                  description: Harus unik.
+                  example: MTK-WJB
+                deskripsi:
+                  type: string
+                  example: Pelajaran matematika tingkat dasar untuk SMA.
+                jam_per_minggu:
+                  type: integer
+                  minimum: 1
+                  maximum: 40
+                  example: 4
+      responses:
+        '201':
+          description: Mata pelajaran berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Mata pelajaran berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/Mapel'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /mapel/{id}:
+    put:
+      summary: Update Mata Pelajaran (Admin, Guru Only)
+      description: Memperbarui data mata pelajaran.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Mapel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_mapel:
+                  type: string
+                  example: Matematika Wajib
+                kode_mapel:
+                  type: string
+                  example: MTK-WJB
+                deskripsi:
+                  type: string
+                jam_per_minggu:
+                  type: integer
+      responses:
+        '200':
+          description: Mata pelajaran berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Mata pelajaran berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/Mapel'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+    delete:
+      summary: Hapus Mata Pelajaran (Admin, Guru Only)
+      description: Menghapus data mata pelajaran.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Mapel
+      responses:
+        '200':
+          description: Mata pelajaran berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Mata pelajaran berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /materi:
+    get:
+      summary: List Materi Pembelajaran (Semua Role)
+      description: |
+        Menampilkan daftar semua materi pembelajaran dengan filter tipe & mata pelajaran.
+        * **Guru:** Hanya melihat materi yang diunggah oleh dirinya sendiri.
+        * **Siswa/Admin:** Melihat semua materi di sistem.
+      parameters:
+        - name: search
+          in: query
+          description: Cari berdasarkan judul materi
+          required: false
+          schema:
+            type: string
+        - name: tipe
+          in: query
+          description: Filter berdasarkan tipe file materi
+          required: false
+          schema:
+            type: string
+            enum: [pdf, gambar, video]
+        - name: mapel_id
+          in: query
+          description: Filter berdasarkan ID mata pelajaran
+          required: false
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          description: Jumlah materi per halaman
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List materi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Materi'
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      last_page: { type: integer }
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+    post:
+      summary: Buat Materi Baru (Admin, Guru Only)
+      description: |
+        Membuat materi pembelajaran baru.
+        * Jika tipe `pdf` atau `gambar`, unggah file menggunakan format data `multipart/form-data`.
+        * Jika tipe `video`, kirimkan URL tautan video (`link_video`).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - judul
+                - tipe
+                - mapel_id
+              properties:
+                judul:
+                  type: string
+                  example: Teorema Pythagoras Dasar
+                deskripsi:
+                  type: string
+                  example: Materi pengenalan dasar rumus pythagoras segitiga siku-siku.
+                tipe:
+                  type: string
+                  enum: [pdf, gambar, video]
+                  example: pdf
+                mapel_id:
+                  type: integer
+                  description: ID mata pelajaran
+                  example: 1
+                file:
+                  type: string
+                  format: binary
+                  description: File materi (Wajib jika tipe pdf/gambar. Maks 20 MB. Ekstensi pdf, jpg, jpeg, png, webp).
+                link_video:
+                  type: string
+                  format: uri
+                  description: Tautan video (Wajib jika tipe video).
+                  example: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+      responses:
+        '201':
+          description: Materi berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Materi berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/Materi'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /materi/{id}:
+    get:
+      summary: Detail Materi (Semua Role)
+      description: Mengambil data detail satu materi pembelajaran. Guru dibatasi hanya dapat melihat materi miliknya sendiri.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Materi
+      responses:
+        '200':
+          description: Detail materi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Materi'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          description: Hak akses ditolak (guru mengakses materi guru lain).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Anda tidak memiliki akses ke materi ini.
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+    put:
+      summary: Update Materi (Admin, Guru Only)
+      description: Memperbarui data materi. Hanya bisa dilakukan oleh guru pemilik materi atau admin. Mengunggah file baru akan menggantikan file lama.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Materi
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                judul:
+                  type: string
+                  example: Teorema Pythagoras Tingkat Lanjut
+                deskripsi:
+                  type: string
+                mapel_id:
+                  type: integer
+                  example: 1
+                file:
+                  type: string
+                  format: binary
+                  description: File baru (pdf/gambar) untuk menggantikan file lama.
+                link_video:
+                  type: string
+                  format: uri
+                  example: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+      responses:
+        '200':
+          description: Materi berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Materi berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/Materi'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+    delete:
+      summary: Hapus Materi (Admin, Guru Only)
+      description: Menghapus data materi beserta file fisiknya di disk penyimpanan (storage). Hanya dapat dilakukan oleh guru pemilik materi atau admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Materi
+      responses:
+        '200':
+          description: Materi berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Materi berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /tugas:
+    get:
+      summary: List Tugas (Semua Role)
+      description: Mengambil daftar tugas pembelajaran. Siswa hanya melihat tugas di kelasnya (dengan eager loading data pengumpulan miliknya). Guru hanya melihat tugas yang dibuatnya.
+      responses:
+        '200':
+          description: List tugas berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tugas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+    post:
+      summary: Buat Tugas Baru (Admin, Guru Only)
+      description: Membuat tugas baru untuk suatu kelas. Opsional dapat melampirkan berkas (maks 20 MB).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - judul
+                - deadline
+                - kelas_id
+              properties:
+                judul:
+                  type: string
+                  example: Tugas Matematika Aljabar
+                deskripsi:
+                  type: string
+                  example: Selesaikan soal aljabar halaman 45.
+                deadline:
+                  type: string
+                  format: date-time
+                  description: Batas waktu pengumpulan.
+                  example: "2026-06-30T23:59:59Z"
+                kelas_id:
+                  type: integer
+                  description: ID Kelas target tugas.
+                  example: 1
+                file_tugas:
+                  type: string
+                  format: binary
+                  description: Berkas lampiran tugas (maks 20 MB).
+      responses:
+        '201':
+          description: Tugas berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Tugas berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/Tugas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '422':
+          description: Validasi gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /tugas/{id}:
+    delete:
+      summary: Hapus Tugas (Admin, Guru Only)
+      description: Menghapus data tugas beserta seluruh data pengumpulannya.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Tugas
+      responses:
+        '200':
+          description: Tugas berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Tugas berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /tugas/{id}/kumpul:
+    post:
+      summary: Kumpulkan Tugas (Siswa Only)
+      description: Siswa mengumpulkan file jawaban tugas. Jika sudah mengumpulkan sebelumnya, file lama akan diganti dengan yang baru.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Tugas
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file_jawaban
+              properties:
+                file_jawaban:
+                  type: string
+                  format: binary
+                  description: File lembar jawaban siswa (maks 20 MB).
+      responses:
+        '200':
+          description: Tugas berhasil dikumpulkan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Tugas berhasil dikumpulkan.
+                  data:
+                    $ref: '#/components/schemas/PengumpulanTugas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          description: Validasi gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /pengumpulan/{tugas_id}:
+    get:
+      summary: List Pengumpulan Tugas (Admin, Guru Only)
+      description: Mengambil daftar pengumpulan tugas untuk tugas tertentu. Daftar ini mencakup semua siswa di kelas tersebut (siswa yang belum mengumpulkan akan memiliki data pengumpulan kosong/null dengan detail siswa tetap terisi).
+      parameters:
+        - name: tugas_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Tugas
+      responses:
+        '200':
+          description: List pengumpulan tugas berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PengumpulanTugas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /pengumpulan/{id}/nilai:
+    put:
+      summary: Input/Update Nilai Tugas (Admin, Guru Only)
+      description: Memberikan nilai dan catatan guru untuk pengumpulan tugas siswa. Bisa juga dinilai langsung tanpa file kumpul dengan menyertakan tugas_id dan siswa_id di request body jika id pengumpulan bernilai 0.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Pengumpulan Tugas (Gunakan 0/null jika guru ingin langsung menilai dengan menyertakan tugas_id dan siswa_id di body)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nilai
+              properties:
+                nilai:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  example: 85
+                catatan_guru:
+                  type: string
+                  example: Jawaban sudah tepat, pertahankan!
+                tugas_id:
+                  type: integer
+                  description: Hanya diisi jika direct grading (dinilai langsung tanpa file kumpul).
+                  example: 1
+                siswa_id:
+                  type: integer
+                  description: Hanya diisi jika direct grading (dinilai langsung tanpa file kumpul).
+                  example: 3
+      responses:
+        '200':
+          description: Nilai berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Nilai berhasil disimpan.
+                  data:
+                    $ref: '#/components/schemas/PengumpulanTugas'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          description: Validasi gagal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /forum:
+    get:
+      summary: List Topik Forum (Semua Role)
+      description: Mengambil daftar topik diskusi forum.
+      parameters:
+        - name: search
+          in: query
+          description: Cari judul topik
+          required: false
+          schema:
+            type: string
+        - name: mapel_id
+          in: query
+          description: Filter mata pelajaran
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter berdasarkan status topik
+          required: false
+          schema:
+            type: string
+            enum: [aktif, ditutup]
+        - name: per_page
+          in: query
+          description: Jumlah item per halaman
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List topik forum berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ForumTopik'
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      last_page: { type: integer }
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+    post:
+      summary: Buat Topik Forum Baru (Semua Role)
+      description: Membuat topik diskusi forum baru. Jika pembuat topik bertipe 'siswa', sistem secara otomatis akan mengirimkan notifikasi kepada seluruh guru pengampu.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - judul
+                - konten
+              properties:
+                judul:
+                  type: string
+                  example: Bingung dengan Logika Percabangan di Python
+                konten:
+                  type: string
+                  description: Isi/konten forum minimal 10 karakter.
+                  example: Teman-teman dan Bapak/Ibu Guru, saya sedang belajar percabangan nested if di Python tapi selalu error di indentasi. Ada yang bisa membantu?
+                mapel_id:
+                  type: integer
+                  description: ID Mata pelajaran terkait (opsional).
+                  example: 1
+      responses:
+        '201':
+          description: Topik berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Topik berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/ForumTopik'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /forum/{id}:
+    get:
+      summary: Detail Topik & Komentar (Semua Role)
+      description: Mengambil detail satu topik diskusi beserta komentar dan balasan komentar bertingkat di dalamnya. Jumlah viewer topik akan bertambah 1 setiap kali endpoint ini diakses.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Topik Forum
+      responses:
+        '200':
+          description: Detail topik berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/ForumTopikDetail'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+    put:
+      summary: Update Topik Forum (Semua Role)
+      description: Memperbarui isi topik forum. Hanya dapat dilakukan oleh pemilik topik atau admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Topik Forum
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                judul:
+                  type: string
+                  example: Bingung dengan Indentasi Percabangan di Python
+                konten:
+                  type: string
+                  example: Teman-teman dan Bapak/Ibu Guru, saya sedang belajar percabangan nested if di Python tapi selalu error di indentasi. Ada yang bisa membantu?
+                mapel_id:
+                  type: integer
+                  example: 1
+                status:
+                  type: string
+                  enum: [aktif, ditutup]
+                  example: aktif
+      responses:
+        '200':
+          description: Topik berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Topik berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/ForumTopik'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+    delete:
+      summary: Hapus Topik Forum (Semua Role)
+      description: Menghapus topik forum beserta seluruh komentar dan balasan di dalamnya. Hanya dapat dilakukan oleh pemilik topik atau admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Topik Forum
+      responses:
+        '200':
+          description: Topik berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Topik berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /forum/{id}/komentar:
+    post:
+      summary: Tambah Komentar / Balasan (Semua Role)
+      description: |
+        Menuliskan komentar baru pada topik forum, atau membalas komentar yang sudah ada.
+        * Mengirimkan `parent_id` bernilai `null` akan membuat komentar utama.
+        * Mengirimkan `parent_id` dengan ID komentar tertentu akan membuat komentar tersebut sebagai balasan (nested).
+        * Sistem otomatis mengirimkan notifikasi ke pemilik topik (jika komentar baru) atau ke pemilik komentar utama (jika balasan).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Topik Forum
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - konten
+              properties:
+                konten:
+                  type: string
+                  description: Isi komentar minimal 2 karakter.
+                  example: Coba cek spasi tab-nya, di Python wajib 4 spasi atau konsisten satu tab.
+                parent_id:
+                  type: integer
+                  nullable: true
+                  description: ID komentar utama yang ingin dibalas (diisi hanya jika membalas komentar).
+                  example: 1
+      responses:
+        '201':
+          description: Komentar / balasan berhasil disimpan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Komentar berhasil ditambahkan.
+                  data:
+                    $ref: '#/components/schemas/Komentar'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          description: Gagal karena topik sudah ditutup atau komentar parent tidak ditemukan dalam topik ini.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /komentar/{id}:
+    put:
+      summary: Edit Komentar (Semua Role)
+      description: Mengedit teks komentar yang sudah ditulis. Hanya dapat dilakukan oleh pemilik komentar tersebut.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Komentar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - konten
+              properties:
+                konten:
+                  type: string
+                  example: Revisi komentar, pastikan cek indentation setting di VSCode.
+      responses:
+        '200':
+          description: Komentar berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Komentar berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/Komentar'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+    delete:
+      summary: Hapus Komentar (Semua Role)
+      description: Menghapus komentar. Dapat dilakukan oleh pemilik komentar atau admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Komentar
+      responses:
+        '200':
+          description: Komentar berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Komentar berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /notifikasi:
+    get:
+      summary: List Notifikasi Pengguna (Semua Role)
+      description: Menampilkan daftar notifikasi yang ditujukan untuk user yang sedang login saat ini.
+      parameters:
+        - name: belum_dibaca
+          in: query
+          description: Kirimkan 1 jika ingin menyaring hanya notifikasi yang belum dibaca.
+          required: false
+          schema:
+            type: boolean
+        - name: per_page
+          in: query
+          description: Jumlah item per halaman (default 15)
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Notifikasi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  jumlah_belum_dibaca:
+                    type: integer
+                    example: 3
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notifikasi'
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      last_page: { type: integer }
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+  /notifikasi/baca-semua:
+    put:
+      summary: Tandai Semua Notifikasi Sudah Dibaca (Semua Role)
+      description: Menandai seluruh notifikasi user yang sedang login menjadi sudah dibaca sekaligus.
+      responses:
+        '200':
+          description: Berhasil menandai.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 3 notifikasi ditandai sudah dibaca.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+  /notifikasi/{id}/baca:
+    put:
+      summary: Tandai Satu Notifikasi Sudah Dibaca (Semua Role)
+      description: Menandai satu notifikasi spesifik sebagai sudah dibaca.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Notifikasi
+      responses:
+        '200':
+          description: Berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Notifikasi ditandai sudah dibaca.
+                  data:
+                    $ref: '#/components/schemas/Notifikasi'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /notifikasi/{id}:
+    delete:
+      summary: Hapus Notifikasi (Semua Role)
+      description: Menghapus satu notifikasi milik pengguna.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Notifikasi
+      responses:
+        '200':
+          description: Notifikasi berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Notifikasi berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /pengumuman:
+    get:
+      summary: List Pengumuman (Semua Role)
+      description: |
+        Menampilkan pengumuman di sistem.
+        * **Admin / Guru:** Melihat seluruh pengumuman sekolah, serta dapat menyaring pengumuman berdasarkan kelas.
+        * **Siswa:** Mengambil pengumuman khusus untuk kelas dirinya saat ini (berdasarkan kelas tahun ajaran terbaru) dan pengumuman global (untuk semua kelas / kelas_id null).
+      parameters:
+        - name: search
+          in: query
+          description: Cari berdasarkan judul pengumuman
+          required: false
+          schema:
+            type: string
+        - name: kelas_id
+          in: query
+          description: Filter pengumuman per kelas (Hanya berlaku untuk Admin & Guru)
+          required: false
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          description: Jumlah item per halaman
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pengumuman berhasil diambil.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pengumuman'
+                  meta:
+                    type: object
+                    properties:
+                      current_page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      last_page: { type: integer }
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+
+    post:
+      summary: Buat Pengumuman Baru (Admin, Guru Only)
+      description: Membuat pengumuman baru. Jika `kelas_id` dikirimkan bernilai `null` atau tidak dikirim, pengumuman akan bersifat global untuk semua kelas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - judul
+                - isi
+              properties:
+                judul:
+                  type: string
+                  example: Upacara Hari Kemerdekaan 17 Agustus
+                isi:
+                  type: string
+                  description: Isi pengumuman minimal 5 karakter.
+                  example: Diharapkan seluruh siswa hadir pukul 07:00 WIB menggunakan pakaian seragam lengkap.
+                kelas_id:
+                  type: integer
+                  nullable: true
+                  description: ID kelas tujuan (opsional, jika kosong = untuk semua kelas).
+                  example: null
+      responses:
+        '201':
+          description: Pengumuman berhasil dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pengumuman berhasil dibuat.
+                  data:
+                    $ref: '#/components/schemas/Pengumuman'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /pengumuman/{id}:
+    put:
+      summary: Update Pengumuman (Admin, Guru Only)
+      description: Mengedit isi pengumuman. Hanya dapat dilakukan oleh admin atau guru pembuat pengumuman tersebut.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Pengumuman
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                judul:
+                  type: string
+                  example: Upacara Hari Kemerdekaan (Revisi Waktu)
+                isi:
+                  type: string
+                  example: Diharapkan seluruh siswa hadir pukul 06:45 WIB menggunakan pakaian seragam lengkap dan topi.
+                kelas_id:
+                  type: integer
+                  nullable: true
+                  example: null
+      responses:
+        '200':
+          description: Pengumuman berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pengumuman berhasil diperbarui.
+                  data:
+                    $ref: '#/components/schemas/Pengumuman'
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+    delete:
+      summary: Hapus Pengumuman (Admin, Guru Only)
+      description: Menghapus pengumuman dari sistem. Hanya dapat dilakukan oleh admin atau guru pembuat pengumuman tersebut.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID Pengumuman
+      responses:
+        '200':
+          description: Pengumuman berhasil dihapus.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Pengumuman berhasil dihapus.
+        '401':
+          $ref: '#/components/responses/401Unauthenticated'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Masukkan access token (plainTextToken) yang didapatkan saat login sukses.
+
+  responses:
+    401Unauthenticated:
+      description: Pengguna belum login atau token tidak valid.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Unauthenticated. Silakan login terlebih dahulu.
+    403Forbidden:
+      description: Hak akses ditolak karena role tidak sesuai.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Akses ditolak. Anda tidak memiliki izin untuk mengakses resource ini.
+              required_roles:
+                type: array
+                items:
+                  type: string
+                example: ["admin"]
+              your_role:
+                type: string
+                example: siswa
+    404NotFound:
+      description: Resource / Data tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Data tidak ditemukan.
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama:
+          type: string
+          example: Administrator
+        username:
+          type: string
+          example: admin
+        email:
+          type: string
+          format: email
+          example: admin@sekolah.sch.id
+        role:
+          type: string
+          enum: [admin, guru, siswa]
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-06-24T10:30:00.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-06-24T10:30:00.000000Z"
+
+    Kelas:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama_kelas:
+          type: string
+          example: X MIPA 1
+        tingkat:
+          type: string
+          example: X
+        jurusan:
+          type: string
+          example: MIPA
+        tahun_ajaran:
+          type: integer
+          example: 2024
+        guru:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, example: 2 }
+            nama: { type: string, example: Budi Santoso }
+            role: { type: string, example: guru }
+        siswa:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer, example: 3 }
+              nama: { type: string, example: Siti Rahayu }
+              role: { type: string, example: siswa }
+              pivot:
+                type: object
+                properties:
+                  kelas_id: { type: integer, example: 1 }
+                  siswa_id: { type: integer, example: 3 }
+                  tahun_ajaran: { type: integer, example: 2024 }
+
+    Mapel:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama_mapel:
+          type: string
+          example: Matematika Wajib
+        kode_mapel:
+          type: string
+          example: MTK-WJB
+        deskripsi:
+          type: string
+          example: Pelajaran matematika dasar SMA
+        jam_per_minggu:
+          type: integer
+          example: 4
+
+    Materi:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        judul:
+          type: string
+          example: Teorema Pythagoras
+        deskripsi:
+          type: string
+          example: Deskripsi materi pythagoras
+        tipe:
+          type: string
+          enum: [pdf, gambar, video]
+          example: pdf
+        file_path:
+          type: string
+          nullable: true
+          example: materi/pdf/uuid-file.pdf
+        file_url:
+          type: string
+          nullable: true
+          example: http://localhost:8000/storage/materi/pdf/uuid-file.pdf
+        file_original_name:
+          type: string
+          nullable: true
+          example: pythagoras_kelas_x.pdf
+        file_size:
+          type: integer
+          nullable: true
+          example: 2048576
+        link_video:
+          type: string
+          nullable: true
+          example: null
+        mapel:
+          type: object
+          properties:
+            id: { type: integer, example: 1 }
+            nama_mapel: { type: string, example: Matematika Wajib }
+        guru:
+          type: object
+          properties:
+            id: { type: integer, example: 2 }
+            nama: { type: string, example: Budi Santoso }
+
+    ForumTopik:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        judul:
+          type: string
+          example: Diskusi Matematika Pythagoras
+        konten:
+          type: string
+          example: Ini isi konten forum diskusi...
+        status:
+          type: string
+          enum: [aktif, ditutup]
+          example: aktif
+        views:
+          type: integer
+          example: 10
+        komentar_count:
+          type: integer
+          example: 3
+        created_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id: { type: integer, example: 3 }
+            nama: { type: string, example: Siti Rahayu }
+            role: { type: string, example: siswa }
+        mapel:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, example: 1 }
+            nama_mapel: { type: string, example: Matematika Wajib }
+
+    ForumTopikDetail:
+      allOf:
+        - $ref: '#/components/schemas/ForumTopik'
+        - type: object
+          properties:
+            komentar_utama:
+              type: array
+              items:
+                $ref: '#/components/schemas/KomentarUtama'
+
+    KomentarUtama:
+      allOf:
+        - $ref: '#/components/schemas/Komentar'
+        - type: object
+          properties:
+            balasan:
+              type: array
+              items:
+                $ref: '#/components/schemas/Komentar'
+
+    Komentar:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        konten:
+          type: string
+          example: Ini adalah komentar/balasan
+        forum_topik_id:
+          type: integer
+          example: 1
+        parent_id:
+          type: integer
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id: { type: integer, example: 2 }
+            nama: { type: string, example: Budi Santoso }
+            role: { type: string, example: guru }
+
+    Notifikasi:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        judul:
+          type: string
+          example: Komentar Baru di Topik Anda
+        pesan:
+          type: string
+          example: Budi Santoso mengomentari topik "Diskusi Matematika Pythagoras"
+        tipe:
+          type: string
+          example: komentar_baru
+        dibaca_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+        notifiable_type:
+          type: string
+          example: App\Models\Komentar
+        notifiable_id:
+          type: integer
+          example: 1
+
+    Pengumuman:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        judul:
+          type: string
+          example: Pengumuman Pembagian Rapor
+        isi:
+          type: string
+          example: Pembagian rapor semester genap akan dilaksanakan pada...
+        created_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id: { type: integer, example: 1 }
+            nama: { type: string, example: Administrator }
+            role: { type: string, example: admin }
+        kelas:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, example: 1 }
+            nama_kelas: { type: string, example: X MIPA 1 }
+            tingkat: { type: string, example: X }
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Data yang dikirim tidak valid.
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email:
+              - "Email wajib diisi."
+              - "Format email tidak valid."
+
+    PaginationLinks:
+      type: object
+      properties:
+        first: { type: string, example: "http://localhost:8000/api/admin?page=1" }
+        last: { type: string, example: "http://localhost:8000/api/admin?page=5" }
+        prev: { type: string, nullable: true, example: null }
+        next: { type: string, nullable: true, example: "http://localhost:8000/api/admin?page=2" }
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page: { type: integer, example: 1 }
+        from: { type: integer, example: 1 }
+        last_page: { type: integer, example: 5 }
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              url: { type: string, nullable: true }
+              label: { type: string }
+              active: { type: boolean }
+        path: { type: string, example: "http://localhost:8000/api/admin" }
+        per_page: { type: integer, example: 10 }
+        to: { type: integer, example: 10 }
+        total: { type: integer, example: 50 }
+
+    Tugas:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        judul:
+          type: string
+          example: Tugas Matematika Aljabar
+        deskripsi:
+          type: string
+          nullable: true
+          example: Selesaikan soal aljabar halaman 45.
+        deadline:
+          type: string
+          format: date-time
+          example: "2026-06-30T23:59:59.000000Z"
+        attachment_path:
+          type: string
+          nullable: true
+          example: tugas/uuid-file.pdf
+        attachment_name:
+          type: string
+          nullable: true
+          example: aljabar_dasar.pdf
+        kelas_id:
+          type: integer
+          example: 1
+        guru_id:
+          type: integer
+          example: 2
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        kelas:
+          $ref: '#/components/schemas/Kelas'
+        guru:
+          type: object
+          properties:
+            id: { type: integer, example: 2 }
+            nama: { type: string, example: Budi Santoso }
+            role: { type: string, example: guru }
+        pengumpulan:
+          type: array
+          items:
+            $ref: '#/components/schemas/PengumpulanTugas'
+
+    PengumpulanTugas:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+          example: 1
+        tugas_id:
+          type: integer
+          example: 1
+        siswa_id:
+          type: integer
+          example: 3
+        file_path:
+          type: string
+          nullable: true
+          example: pengumpulan/uuid-jawaban.pdf
+        file_name:
+          type: string
+          nullable: true
+          example: jawaban_aljabar_siti.pdf
+        nilai:
+          type: integer
+          nullable: true
+          example: 85
+        catatan_guru:
+          type: string
+          nullable: true
+          example: Jawaban sudah tepat, pertahankan!
+        dikumpul_pada:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-06-25T10:00:00.000000Z"
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        siswa:
+          type: object
+          properties:
+            id: { type: integer, example: 3 }
+            nama: { type: string, example: Siti Rahayu }
+            email: { type: string, format: email, example: siti@sekolah.sch.id }

@@ -25,8 +25,8 @@ return new class extends Migration
                   ->on('users')
                   ->cascadeOnDelete();
 
-            // Satu siswa hanya boleh masuk satu kelas per tahun ajaran
-            $table->unique(['siswa_id', 'tahun_ajaran']);
+            // Satu siswa boleh masuk banyak kelas
+            $table->index('siswa_id');
         });
     }
 

@@ -15,7 +15,7 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         // Ambil ID dari route parameter untuk ignore unique sendiri
-        $userId = $this->route('id');
+        $userId = $this->route('id') ?? $this->route('admin');
 
         return [
             'nama'     => ['sometimes', 'required', 'string', 'max:255'],

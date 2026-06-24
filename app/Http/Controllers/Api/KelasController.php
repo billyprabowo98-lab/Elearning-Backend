@@ -26,9 +26,20 @@ class KelasController extends Controller
     public function index(Request $request): JsonResponse
     {
         $perPage = min((int) $request->query('per_page', 10), 100);
+        $user = $request->user();
 
-        $kelas = Kelas::with(['guru', 'siswa'])
-            ->when($request->filled('search'), fn($q) =>
+        $query = Kelas::with(['guru', 'siswa']);
+
+        if ($user->role === 'siswa') {
+            $kelasIds = \DB::table('siswa_kelas')
+                ->where('siswa_id', $user->id)
+                ->pluck('kelas_id');
+            $query->whereIn('id', $kelasIds);
+        } elseif ($user->role === 'guru') {
+            $query->where('guru_id', $user->id);
+        }
+
+        $kelas = $query->when($request->filled('search'), fn($q) =>
                 $q->where('nama_kelas', 'like', '%' . $request->search . '%')
             )
             ->when($request->filled('tahun_ajaran'), fn($q) =>
@@ -70,6 +81,11 @@ class KelasController extends Controller
             }
         }
 
+        // Auto-create mapel if not exists
+        if ($request->filled('jurusan')) {
+            $this->ensureMapelExists($request->jurusan);
+        }
+
         $kelas = Kelas::create($request->validated());
         $kelas->load(['guru', 'siswa']);
 
@@ -102,6 +118,11 @@ class KelasController extends Controller
                     'message' => 'Wali kelas harus memiliki role guru.',
                 ], 422);
             }
+        }
+
+        // Auto-create mapel if not exists
+        if ($request->filled('jurusan')) {
+            $this->ensureMapelExists($request->jurusan);
         }
 
         $kelas->update($request->validated());
@@ -229,5 +250,100 @@ class KelasController extends Controller
             'success' => true,
             'message' => 'Siswa berhasil dikeluarkan dari kelas.',
         ]);
+    }
+
+    /**
+     * POST /api/kelas/join
+     * Siswa bergabung ke kelas menggunakan ID kelas (Class Code).
+     */
+    public function joinKelas(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user->role !== 'siswa') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya siswa yang dapat bergabung ke kelas.'
+            ], 403);
+        }
+
+        $request->validate([
+            'kelas_id' => 'required|integer',
+        ]);
+
+        $kelasId = $request->kelas_id;
+        $kelas = Kelas::find($kelasId);
+
+        if (!$kelas) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kelas tidak ditemukan. Periksa kembali kode kelas.'
+            ], 404);
+        }
+
+        // Cek apakah sudah bergabung
+        $alreadyJoined = \DB::table('siswa_kelas')
+            ->where('kelas_id', $kelasId)
+            ->where('siswa_id', $user->id)
+            ->exists();
+
+        if ($alreadyJoined) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah terdaftar di kelas ini.'
+            ], 422);
+        }
+
+        // Hubungkan siswa ke kelas
+        \DB::table('siswa_kelas')->insert([
+            'kelas_id' => $kelasId,
+            'siswa_id' => $user->id,
+            'tahun_ajaran' => $kelas->tahun_ajaran ?: now()->year,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Berhasil bergabung ke kelas.',
+            'data' => $kelas
+        ]);
+    }
+
+    /**
+     * Pastikan mapel dengan nama/kode jurusan terdaftar di mata_pelajaran.
+     */
+    private function ensureMapelExists(string $jurusan): void
+    {
+        $jurusanTrim = trim($jurusan);
+        if (empty($jurusanTrim)) return;
+
+        $exists = \DB::table('mata_pelajaran')
+            ->whereRaw('LOWER(nama_mapel) = ?', [strtolower($jurusanTrim)])
+            ->orWhereRaw('LOWER(kode_mapel) = ?', [strtolower($jurusanTrim)])
+            ->exists();
+
+        if (!$exists) {
+            // Generate clean alphanumeric base code
+            $baseKode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $jurusanTrim), 0, 5));
+            if (empty($baseKode)) {
+                $baseKode = 'MP';
+            }
+
+            // Loop to guarantee uniqueness of kode_mapel in the database
+            $kode = $baseKode;
+            $counter = 1;
+            while (\DB::table('mata_pelajaran')->where('kode_mapel', $kode)->exists()) {
+                $kode = substr($baseKode, 0, 4) . $counter;
+                $counter++;
+            }
+
+            \DB::table('mata_pelajaran')->insert([
+                'nama_mapel' => $jurusanTrim,
+                'kode_mapel' => $kode,
+                'jam_per_minggu' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }

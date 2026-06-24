@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\MateriController;
 use App\Http\Controllers\Api\NotifikasiController;
 use App\Http\Controllers\Api\PengumumanController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\TugasController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,7 +18,16 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ── Sprint 1: Autentikasi (public) ────────────────────────────────────────
+Route::get('/health', function () {
+    return response()->json([
+        'success'   => true,
+        'message'   => 'E-Learning Backend API is running successfully',
+        'timestamp' => now()->toIso8601String()
+    ]);
+});
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
+
 
 // ── Protected routes ──────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -25,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Sprint 1: Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'profile']);
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
 
     // Sprint 2: Manajemen Pengguna — hanya admin
     Route::middleware('role:admin')->group(function () {
@@ -33,28 +44,36 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Sprint 3: Kelas & Mata Pelajaran — admin dan guru
     Route::middleware('role:admin,guru')->group(function () {
-        Route::get('kelas',                          [KelasController::class, 'index']);
         Route::post('kelas',                         [KelasController::class, 'store']);
         Route::put('kelas/{id}',                     [KelasController::class, 'update']);
         Route::delete('kelas/{id}',                  [KelasController::class, 'destroy']);
         Route::post('kelas/{id}/siswa',              [KelasController::class, 'tambahSiswa']);
         Route::delete('kelas/{id}/siswa/{id_siswa}', [KelasController::class, 'hapusSiswa']);
 
-        Route::get('mapel',         [MapelController::class, 'index']);
         Route::post('mapel',        [MapelController::class, 'store']);
         Route::put('mapel/{id}',    [MapelController::class, 'update']);
         Route::delete('mapel/{id}', [MapelController::class, 'destroy']);
     });
 
-    // Sprint 4: Materi — GET untuk semua, CUD untuk guru/admin
+    // Sprint 4: Materi & Tugas & Kelas — GET untuk semua, CUD untuk guru/admin
     Route::middleware('role:admin,guru,siswa')->group(function () {
-        Route::get('materi',      [MateriController::class, 'index']);
-        Route::get('materi/{id}', [MateriController::class, 'show']);
+        Route::get('kelas',                  [KelasController::class, 'index']);
+        Route::post('kelas/join',            [KelasController::class, 'joinKelas']);
+        Route::get('mapel',                  [MapelController::class, 'index']);
+        Route::get('materi',                 [MateriController::class, 'index']);
+        Route::get('materi/{id}',            [MateriController::class, 'show']);
+        Route::get('tugas',                  [TugasController::class, 'index']);
+        Route::post('tugas/{id}/kumpul',     [TugasController::class, 'kumpulTugas']);
     });
     Route::middleware('role:admin,guru')->group(function () {
         Route::post('materi',        [MateriController::class, 'store']);
         Route::put('materi/{id}',    [MateriController::class, 'update']);
         Route::delete('materi/{id}', [MateriController::class, 'destroy']);
+
+        Route::post('tugas',                 [TugasController::class, 'store']);
+        Route::delete('tugas/{id}',          [TugasController::class, 'destroy']);
+        Route::get('pengumpulan/{tugas_id}', [TugasController::class, 'listPengumpulan']);
+        Route::put('pengumpulan/{id}/nilai', [TugasController::class, 'inputNilai']);
     });
 
     // Sprint 5: Forum Diskusi — semua role

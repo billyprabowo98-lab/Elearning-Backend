@@ -73,4 +73,107 @@ class AuthController extends Controller
             'data'    => new UserResource($request->user()),
         ], 200);
     }
+
+    /**
+     * POST /api/register
+     * Register a new student user.
+     */
+    public function register(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ], [
+            'name.required' => 'Nama wajib diisi.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.unique' => 'Email sudah terdaftar.',
+            'password.required' => 'Kata sandi wajib diisi.',
+            'password.min' => 'Kata sandi minimal 6 karakter.',
+            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+        ]);
+
+        // Auto-generate username from email
+        $usernameBase = explode('@', $request->email)[0];
+        $usernameBase = preg_replace('/[^A-Za-z0-9-_]/', '', $usernameBase);
+        if (empty($usernameBase)) {
+            $usernameBase = 'user';
+        }
+
+        $username = $usernameBase;
+        $counter = 1;
+        while (User::where('username', $username)->exists()) {
+            $username = $usernameBase . $counter;
+            $counter++;
+        }
+
+        $user = User::create([
+            'nama'     => $request->name,
+            'username' => $username,
+            'email'    => $request->email,
+            'password' => Hash::make($request->password),
+            'role'     => 'siswa',
+        ]);
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Registrasi berhasil.',
+            'data'    => [
+                'token'      => $token,
+                'token_type' => 'Bearer',
+                'user'       => [
+                    'id'       => $user->id,
+                    'nama'     => $user->nama,
+                    'username' => $user->username,
+                    'email'    => $user->email,
+                    'role'     => $user->role,
+                ],
+            ],
+        ], 201);
+    }
+    /**
+     * PUT /api/profile
+     * Update data user yang sedang login.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'nama'     => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255', 'unique:users,username,' . $user->id],
+            'email'    => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'password' => ['nullable', 'string', 'min:6'],
+        ], [
+            'nama.required'     => 'Nama wajib diisi.',
+            'username.required' => 'Username wajib diisi.',
+            'username.unique'   => 'Username sudah digunakan.',
+            'email.required'    => 'Email wajib diisi.',
+            'email.email'       => 'Format email tidak valid.',
+            'email.unique'      => 'Email sudah digunakan.',
+            'password.min'      => 'Kata sandi minimal 6 karakter.',
+        ]);
+
+        $data = [
+            'nama'     => $request->nama,
+            'username' => $request->username,
+            'email'    => $request->email,
+        ];
+
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
+        }
+
+        $user->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profil berhasil diperbarui.',
+            'data'    => new UserResource($user),
+        ], 200);
+    }
 }
+
